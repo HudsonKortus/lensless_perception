@@ -86,15 +86,19 @@ def gen_OOFphase(Phi_list, N_B, wvls):
     N = N_B
     x0 = np.linspace(-1.1, 1.1, N)
     xx, yy = np.meshgrid(x0, x0)
-    OOFphase = np.empty([len(Phi_list), N, N, len(wvls)], dtype=np.float32)
-    for j in range(len(Phi_list)):
+    OOFphase = np.empty([len(Phi_list), N, N, len(wvls)], dtype=np.float32) #create 4D tensor 
+    for j in range(len(Phi_list)): #iterate through defocus phase 
         Phi = Phi_list[j]
-        for k in range(len(wvls)):
-            OOFphase[j, :, :, k] = Phi * (xx ** 2 + yy ** 2) * wvls[1] / wvls[k];
+        for k in range(len(wvls)): #iterate thorugh color channels
+            OOFphase[j, :, :, k] = Phi * (xx ** 2 + yy ** 2) * wvls[1] / wvls[k]; #
     return OOFphase
 
 
 def gen_PSFs(h, OOFphase, wvls, idx, N_R, N_G, N_B):
+    '''
+    Inputs: h: location of 
+    
+    '''
     n = 1.5  # diffractive index
 
     with tf.variable_scope("Red"):
@@ -183,19 +187,20 @@ def system(PSFs, RGB_batch_float, DPPhi_float, Phi_batch_scaled, phase_BN=True):
 # def main():
 
 zernike = sio.loadmat('zernike_basis.mat')
-u2 = zernike['u2']  # basis of zernike poly
-idx = zernike['idx']
+u2 = zernike['u2']  # basis of zernike poly shape=(529, 55) 55 sets of polynomials
+idx = zernike['idx'] # binsary apatrue index, literly a circle of 1s 
 idx = idx.astype(np.float32)
 
 N_R = 31
 N_G = 27
-N_B = 23  # size of the blur kernel
-wvls = np.array([610, 530, 470]) * 1e-9
+N_B = 23  # size of the blur kernel for each color channel
+wvls = np.array([610, 530, 470]) * 1e-9 # color light wavelengths
 
-N_modes = u2.shape[1]  # load zernike modes
+N_modes = u2.shape[1]  #number of zernike polynomials, we have 55 here
+# load zernike modes
 
 # generate the defocus phase
-Phi_list = np.linspace(-10, 10, 21, np.float32)
+Phi_list = np.linspace(-10, 10, 21, np.float32) #make an array of floats from -10 to 10, includeing 0
 OOFphase = gen_OOFphase(Phi_list, N_B, wvls)  # return (N_Phi,N_B,N_B,N_color)    
 
 ####################################   Build the architecture  #####################################################

@@ -78,6 +78,8 @@ def add_gaussian_noise(images, std):
 
 
 def fft2dshift(input):
+    # Split and rearrange to move DC component to center
+    # This is equivalent to MATLAB's fftshift or NumPy's fftshift
     dim = int(input.shape[1].value)  # dimension of the data
     if dim % 2 == 0:
         print('Please make the size of kernel odd')
@@ -106,15 +108,26 @@ def gen_OOFphase(Phi_list, N, wvls):
 
 
 def gen_PSFs(h, OOFphase, wvls, idx, N_R, N_G, N_B):
+    '''
+    Inputs:
+        h: 23x23 grid representation of heightmap
+        OOFphase: tensor representing the out of focus phase, its shape is 21,23,23,3, or a stack of 21 hieghtpaps where each hieghtmap has 3 color channels
+        wvls: color wavelengths R, G, B
+        idx: apatrue matrix
+        N_R: kernal size for red
+        N_G: kernal size for blue
+        N_B: kernal size for green
+    '''
     n = 1.5  # diffractive index
 
     with tf.variable_scope("Red"):
-        OOFphase_R = OOFphase[:, :, :, 0]
-        phase_R = tf.add(2 * np.pi / wvls[0] * (n - 1) * h, OOFphase_R)
-        Pupil_R = tf.pad(tf.multiply(tf.complex(idx, 0.0), tf.exp(tf.complex(0.0, phase_R))),
-                         [[0, 0], [(N_R - N_B) // 2, (N_R - N_B) // 2], [(N_R - N_B) // 2, (N_R - N_B) // 2]],
-                         name='Pupil_R')
-        Norm_R = tf.cast(N_R * N_R * np.sum(idx ** 2), tf.float32)
+        OOFphase_R = OOFphase[:, :, :, 0] #access the red channel of the out of focus phase
+        phase_modulation_height_variation = 2 * np.pi / wvls[0] * (n - 1) * h # equation 3
+        phase_R = tf.add(phase_modulation_height_variation, OOFphase_R)
+        pupil_function = tf.multiply(tf.complex(idx, 0.0), tf.exp(tf.complex(0.0, phase_R))) # equation 1
+        Pupil_R = tf.pad(pupil_function,[[0, 0], [(N_R - N_B) // 2, (N_R - N_B) // 2], [(N_R - N_B) // 2, (N_R - N_B) // 2]],
+                         name='Pupil_R') #pad the puple function to fit in the larger red channel kernal
+        Norm_R = tf.cast(N_R * N_R * np.sum(idx ** 2), tf.float32) #energy normalizaiton, this is used dor loss calculation
         PSF_R = tf.divide(tf.square(tf.abs(fft2dshift(tf.fft2d(Pupil_R)))), Norm_R, name='PSF_R')
 
     with tf.variable_scope("Green"):
@@ -124,7 +137,7 @@ def gen_PSFs(h, OOFphase, wvls, idx, N_R, N_G, N_B):
                          [[0, 0], [(N_G - N_B) // 2, (N_G - N_B) // 2], [(N_G - N_B) // 2, (N_G - N_B) // 2]],
                          name='Pupil_G')
         Norm_G = tf.cast(N_G * N_G * np.sum(idx ** 2), tf.float32)
-        PSF_G = tf.divide(tf.square(tf.abs(fft2dshift(tf.fft2d(Pupil_G)))), Norm_G, name='PSF_G')
+        PSF_G = tf.divide(tf.square(tf.abs(fft2dshift(tf.fft2d(Pupil_G)))), Norm_G, name='PSF_G') #calculate the psf like in equation 6, but with some numerical methods added
 
     with tf.variable_scope("Blue"):
         OOFphase_B = OOFphase[:, :, :, 2]
@@ -143,6 +156,10 @@ def gen_PSFs(h, OOFphase, wvls, idx, N_R, N_G, N_B):
 
 
 def blurImage(RGBPhi, DPPhi, PSFs):
+    '''
+    Input:
+
+    '''
     N_B = PSFs.shape[1].value
     N_crop = np.int32((N_B - 1) / 2)
     N_Phi = PSFs.shape[0].value
@@ -171,12 +188,16 @@ def blurImage(RGBPhi, DPPhi, PSFs):
 
 
 def system(PSFs, RGB_batch_float, DPPhi_float, phase_BN=True):
+    '''
+    main network function, this will augment my data, 
+    pass it through the depth estamation network and return the result
+    '''
     with tf.variable_scope("system", reuse=tf.AUTO_REUSE):
-        blur = blurImage(RGB_batch_float, DPPhi_float, PSFs)
+        blur = blurImage(RGB_batch_float, DPPhi_float, PSFs) #simulate camera by adding blur based on PSF
 
         # noise
         sigma = 0.01
-        blur_noisy = add_gaussian_noise(blur, sigma)
+        blur_noisy = add_gaussian_noise(blur, sigma) #augment result so its more realistic
 
         # estimate depth
         Phi_hat = Network.UNet_2(blur_noisy, phase_BN)
@@ -211,29 +232,35 @@ def cost_grad(phi_GT, phi_hat):
 # def main():
 
 zernike = sio.loadmat('zernike_basis.mat')
-u2 = zernike['u2']  # basis of zernike poly
-idx = zernike['idx']
+u2 = zernike['u2']  # basis of zernike poly shape=(529, 55) 55 sets of polynomials
+idx = zernike['idx'] # binsary apatrue index, literly a circle of 1s 
 idx = idx.astype(np.float32)
 
 N_R = 31
 N_G = 27
-N_B = 23  # size of the blur kernel
-wvls = np.array([610, 530, 470]) * 1e-9
+N_B = 23   # size of the blur kernel for each color channel
+wvls = np.array([610, 530, 470]) * 1e-9 # color light wavelengths
 
-N_modes = u2.shape[1]  # load zernike modes
+N_modes = u2.shape[1] #number of zernike polynomials, we have 55 here
 
-# generate the defocus phase
-Phi_list = np.linspace(-10, 10, 21, np.float32)
-OOFphase = gen_OOFphase(Phi_list, N_B, wvls)  # return (N_Phi,N_B,N_B,N_color)    
+# generate the defocus phase- this is our analog for z depth as described in equ 5
+Phi_list = np.linspace(-10, 10, 21, np.float32) #make an array of floats from -10 to 10, includeing 0. this is the defocus blur W_m that servers as the analog for depth in these calculations
+OOFphase = gen_OOFphase(Phi_list, N_B, wvls)  #this is equation 4
+# return (N_Phi,N_B,N_B,N_color)    
 
 ####################################   Build the architecture  #####################################################
 
 with tf.variable_scope("PSFs"):
+    #this is the trainable perameter for the zernike polynomials. each set gets 1 coefficent 
+    # which is initialized at 0 and is cliped between -green_wavelength/2 and +green_wavelength/2
     a_zernike = tf.get_variable("a_zernike", [N_modes, 1], initializer=tf.zeros_initializer(),
-                                constraint=lambda x: tf.clip_by_value(x, -wvls[1] / 2, wvls[1] / 2))
-    g = tf.matmul(u2, a_zernike)
+                                constraint=lambda x: tf.clip_by_value(x, -wvls[1] / 2, wvls[1] / 2)) 
+    
+    g = tf.matmul(u2, a_zernike)#mix all 55 zernike polynomails togeather to get a single phase mask shape 
+    #we will change the weights of each of the 55 durring training
     h = tf.nn.relu(tf.reshape(g, [N_B, N_B]) + wvls[1],
-                   name='heightMap')  # height map of the phase mask, should be all positive
+                   name='heightMap')  #reshape phase mask into grid, offset by green_wavelength
+    # height map of the phase mask, should be all positive- simple remove negative, not to add lnonlinearety
     PSFs = gen_PSFs(h, OOFphase, wvls, idx, N_R, N_G, N_B)  # return (N_Phi, N_B, N_B, N_color)
 
 batch_size = 20
