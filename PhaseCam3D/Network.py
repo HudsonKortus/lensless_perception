@@ -1,5 +1,5 @@
-import tensorflow as tf
-
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 
 def max_pool_2x2(x):
     return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
@@ -8,8 +8,13 @@ def max_pool_2x2(x):
 def conv2d(x, W):
     return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
 
+# def BN(x, phase_BN, scope):
+#     return tf.compat.v1.layers.batch_normalization(x, momentum=0.9, training=phase_BN)
+
 def BN(x, phase_BN, scope):
-    return tf.layers.batch_normalization(x, momentum=0.9, training=phase_BN)
+    # Simple batch norm - compute mean and variance on the fly
+    mean, variance = tf.nn.moments(x, axes=[0, 1, 2])
+    return tf.nn.batch_normalization(x, mean, variance, None, None, 1e-5)
 
 def cnnLayer(scope_name, inputs, outChannels, kernel_size, is_training, relu=True, maxpool=True):
     with tf.variable_scope(scope_name) as scope:

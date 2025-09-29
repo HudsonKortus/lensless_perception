@@ -1,4 +1,5 @@
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 import scipy.io as sio
 import numpy as np
 import os
@@ -263,7 +264,7 @@ with tf.variable_scope("PSFs"):
     # height map of the phase mask, should be all positive- simple remove negative, not to add lnonlinearety
     PSFs = gen_PSFs(h, OOFphase, wvls, idx, N_R, N_G, N_B)  # return (N_Phi, N_B, N_B, N_color)
 
-batch_size = 20
+batch_size = 10
 RGB_batch_float, DPPhi_float, Phi_batch_scaled = read2batch(TFRECORD_TRAIN_PATH, batch_size)
 RGB_batch_float_valid, DPPhi_float_valid, Phi_batch_scaled_valid = read2batch(TFRECORD_VALID_PATH, batch_size)
 
