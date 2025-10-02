@@ -3,3 +3,13 @@ venv
 *.png
 *.tiff
 *.jpg
+*.png
+*.jpeg
+*.bmp 
+*.tfrecord
+__pycache__
+new_model
+*.tar
+*.zip
+nyu_data
+nyu_runs
