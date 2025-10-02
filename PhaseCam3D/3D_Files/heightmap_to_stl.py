@@ -2,8 +2,8 @@ import numpy as np
 from pathlib import Path
 
 # Configuration
-input_file = Path("FisherMask_HeightMap.txt")
-output_file = Path("fisher_mask_base.stl")
+input_file = Path("FisherMask_HeightMap_OG.txt")
+output_file = Path("./3D_Files/fisher_mask_test1.stl")
 total_scale = 1000
 base = 5e-4*total_scale
 xy_pitch = 135e-6 * total_scale  # 135 micrometers in meters

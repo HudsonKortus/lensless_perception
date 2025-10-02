@@ -17,6 +17,8 @@ lr_digital = 1e-4
 print('lr_optical:' + str(lr_optical))
 print('lr_digital:' + str(lr_digital))
 
+REFLECTIVE_INDEX = 1.5 #wrong number
+REFRACTIVE_INDEX = 1.547
 ##########################################   Functions  #############################################
 
 def parse_element(example):
@@ -105,7 +107,7 @@ def gen_OOFphase(Phi_list, N, wvls):
         Phi = Phi_list[j]
         for k in range(len(wvls)):
             OOFphase[j, :, :, k] = Phi * (xx ** 2 + yy ** 2) * wvls[1] / wvls[k];
-    return OOFphase
+    return OOFphase #(depths, x_phasemask, y_pahsemask, colors)
 
 
 def gen_PSFs(h, OOFphase, wvls, idx, N_R, N_G, N_B):
@@ -119,7 +121,7 @@ def gen_PSFs(h, OOFphase, wvls, idx, N_R, N_G, N_B):
         N_G: kernal size for blue
         N_B: kernal size for green
     '''
-    n = 1.5  # diffractive index
+    n = REFLECTIVE_INDEX #1.5  # reflective index
 
     with tf.variable_scope("Red"):
         OOFphase_R = OOFphase[:, :, :, 0] #access the red channel of the out of focus phase
@@ -245,7 +247,7 @@ wvls = np.array([610, 530, 470]) * 1e-9 # color light wavelengths
 N_modes = u2.shape[1] #number of zernike polynomials, we have 55 here
 
 # generate the defocus phase- this is our analog for z depth as described in equ 5
-Phi_list = np.linspace(-10, 10, 21, np.float32) #make an array of floats from -10 to 10, includeing 0. this is the defocus blur W_m that servers as the analog for depth in these calculations
+Phi_list = np.linspace(-15, 15, 21, np.float32) #make an array of floats from -10 to 10, includeing 0. this is the defocus blur W_m that servers as the analog for depth in these calculations
 OOFphase = gen_OOFphase(Phi_list, N_B, wvls)  #this is equation 4
 # return (N_Phi,N_B,N_B,N_color)    
 

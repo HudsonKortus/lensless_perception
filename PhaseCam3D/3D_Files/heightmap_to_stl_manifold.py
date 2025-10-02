@@ -3,7 +3,7 @@ from pathlib import Path
 
 # Configuration
 input_file = Path("new_model/HeightMap.txt")
-output_file = Path("3D_Files/learned_HeightMap.stl")
+output_file = Path("3D_Files/learned_HeightMap2.stl")
 total_scale = 1000
 base = 5e-4*total_scale
 xy_pitch = 135e-6 * total_scale  # 135 micrometers in meters
