@@ -117,10 +117,13 @@ class NYUv2(Dataset):
         if self.depth_transform is not None:
             random.seed(seed)
             img = Image.open(os.path.join(folder("depth"), self._files[index]))
+            
             img = self.depth_transform(img)
-            if isinstance(img, torch.Tensor):
-                # depth png is uint16
-                img = img.float() / 1e4
+            img = np.array(img, dtype=np.float32) / 1e4  # Convert to meters
+
+            img = torch.from_numpy(img)
+            print("numpy depth array", img)
+            img = torch.clamp(img, min=0.0)  # Remove any negative values
             imgs.append(img)
 
         return imgs

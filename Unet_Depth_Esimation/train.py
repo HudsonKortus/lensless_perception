@@ -47,11 +47,12 @@ def train(dataloader, model, loss_fn, optimizer, epochstep):
         rgb = rgb.to(device)
         # print("rbg shape: ", rgb.shape)
 
-        if len(label.shape) == 3:
-            label = label.unsqueeze(1)  # [8, 240, 320] -> [8, 1, 240, 320]
+        # if len(label.shape) == 3:
+        #     label = label.unsqueeze(1)  # [8, 240, 320] -> [8, 1, 240, 320]
 
         label = label.to(device)
-        # print("label shape: ", label.shape)
+        # print("label: ", label)
+        # print(f"label min: {label.min()} label max {label.max()}")
 
         optimizer.zero_grad()
         

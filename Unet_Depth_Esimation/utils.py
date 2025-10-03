@@ -60,16 +60,17 @@ def CombineImages(pred, label, rgb):
     pred = pred.detach().cpu().numpy().squeeze()
     label = label.detach().cpu().numpy().squeeze()
     rgb = rgb.detach().cpu().numpy()
-    
     gray_array = 0.299 * rgb[0, :, :] + 0.587 * rgb[1, :, :] + 0.114 * rgb[2, :, :]
 
     # Add two blank (zero) channels to pred and label to make them 3-channel
     pred_3ch = np.stack([pred, pred, pred], axis=0)
     label_3ch = np.stack([label, label, label], axis=0)
+    # print(f"label vlaue {label_3ch}")
 
 
     # Concatenate images horizontally
     combined_image_np = np.concatenate((pred_3ch, label_3ch, rgb), axis=1)
+    # print("images", combined_image_np)
     combined_image_np = (np.clip(combined_image_np, 0, 1)*255).astype(np.uint8)
     combined_image_np = combined_image_np.transpose(1, 2, 0)
 
