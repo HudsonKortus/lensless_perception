@@ -176,7 +176,6 @@ rgb_transform = transforms.Compose([
 
 depth_transform = transforms.Compose([
     transforms.Resize((240, 320)),
-    transforms.ToTensor(),
 ])
 
 

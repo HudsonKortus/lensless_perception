@@ -50,6 +50,7 @@ class NYUv2(Dataset):
         seg_transform=None,
         sn_transform=None,
         depth_transform=None,
+        max_depth=4.0
     ):
         """
         Will return tuples based on what data source has been enabled (rgb, seg etc).
@@ -73,7 +74,7 @@ class NYUv2(Dataset):
         self.seg_transform = seg_transform
         self.sn_transform = sn_transform
         self.depth_transform = depth_transform
-
+        self.max_depth = max_depth
         self.train = train
         self._split = "train" if train else "test"
 
@@ -114,15 +115,15 @@ class NYUv2(Dataset):
             img = self.sn_transform(img)
             imgs.append(img)
 
-        if self.depth_transform is not None:
+        if self.depth_transform is not None: 
             random.seed(seed)
             img = Image.open(os.path.join(folder("depth"), self._files[index]))
-            
             img = self.depth_transform(img)
             img = np.array(img, dtype=np.float32) / 1e4  # Convert to meters
-
+            img = np.clip(img, a_min=0, a_max=self.max_depth) #remove negative values and clip at 4 meters
+            img = img / self.max_depth
             img = torch.from_numpy(img)
-            print("numpy depth array", img)
+            img = img.unsqueeze(0)  # Add channel dimension
             img = torch.clamp(img, min=0.0)  # Remove any negative values
             imgs.append(img)
 
