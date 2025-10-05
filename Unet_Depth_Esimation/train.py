@@ -62,7 +62,7 @@ def train(dataloader, model, loss_fn, optimizer, epochstep):
         loss = loss_fn(pred, label)        
         loss.backward()
         optimizer.step()
-        # print("loss: ", loss)
+        print("loss: ", loss)
         epochloss += loss.item()
 
         wandb.log({
