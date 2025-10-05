@@ -3,8 +3,6 @@ venv
 *.png
 *.tiff
 *.jpg
-<<<<<<< Updated upstream
-=======
 *.png
 *.jpeg
 *.bmp 
@@ -21,4 +19,3 @@ nyu_runs
 *.pth
 *.pt
 wandb
->>>>>>> Stashed changes
