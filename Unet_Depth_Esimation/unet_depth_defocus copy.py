@@ -161,7 +161,7 @@ def depth_to_soft_masks(depth_m, edges):
     masks = torch.zeros(B, J, 1, H, W, device=depth_m.device, dtype=depth_m.dtype)
     for j in range(J):
         m = (depth_m>=edges[j]) & (depth_m<edges[j+1])
-        masks[:,j,0] = m.float()https://prod.liveshare.vsengsaas.visualstudio.com/join?BEB81EE04963DB19C61EC9E2BBF4881A0B2F
+        masks[:,j,0] = m.float()
     masks = F.avg_pool3d(masks, kernel_size=(1,3,3), stride=1, padding=(0,1,1))
     masks = masks / (masks.sum(dim=1, keepdim=True) + 1e-8)
     return masks
