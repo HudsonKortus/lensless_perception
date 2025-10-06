@@ -8,17 +8,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 import shutil
 from torch.utils.data import Subset
+from torchvision import transforms
 
 import wandb
 
 # CUSTOM
-from network import UNet
+# from network import UNet
+from network import Network
 # from utils import *
-from dataloader import CustomImageDataset
+from dataloader import CustomImageDataset, NYUNativeTest, NYUNativeTrain
 from params import *
 # import pdb
 from utils import *
-
+from nyu_dataloader import NYUv2
 
 
 # Load the parameters
@@ -43,15 +45,24 @@ def train(dataloader, model, loss_fn, optimizer, epochstep):
         dp(' batch', batchcount)
         
         rgb = rgb.to(device)
+        # print("rbg shape: ", rgb.shape)
+
+        # if len(label.shape) == 3:
+        #     label = label.unsqueeze(1)  # [8, 240, 320] -> [8, 1, 240, 320]
+
         label = label.to(device)
-        
+        # print("label: ", label)
+        # print(f"label min: {label.min()} label max {label.max()}")
+
         optimizer.zero_grad()
         
         pred = model(rgb)
+        # print("pred shape: ", pred.shape)
+
         loss = loss_fn(pred, label)        
         loss.backward()
         optimizer.step()
-        
+        print("loss: ", loss)
         epochloss += loss.item()
 
         wandb.log({
@@ -62,6 +73,12 @@ def train(dataloader, model, loss_fn, optimizer, epochstep):
         if batchcount == 0: # only for the first batch every epoch
             wandb_images = []
             for (pred_single, label_single, rgb_single) in zip(pred, label, rgb):
+                
+                # print(f"pred_single size: {pred_single.shape}")
+                # print(f"label_single size: {label_single.shape}")
+                # print(f"rgb_single size: {rgb_single.shape}")
+
+                
                 combined_image_np = CombineImages(pred_single, label_single, rgb_single)
 
                 # Create wandb.Image object and append to the list
@@ -91,8 +108,8 @@ def val(dataloader, model, loss_fn, epochstep):
             label = label.to(device)
             
             pred = model(rgb)
-            print(pred)
-            print(pred.shape)
+            # print(pred)
+            # print(pred.shape)
             loss = loss_fn(pred, label)       
 
             epochloss += loss.item()
@@ -102,6 +119,7 @@ def val(dataloader, model, loss_fn, epochstep):
                     })
             
             if batchcount == 0: # only for the first batch every epoch
+                
                 wandb_images = []
                 for (pred_single, label_single, rgb_single) in zip(pred, label, rgb):
                     combined_image_np = CombineImages(pred_single, label_single, rgb_single)
@@ -126,7 +144,7 @@ wandb.init(
     "JOB_ID":JOB_ID,
     "learning_rate": LR,
     "batchsize": BATCH_SIZE,
-    "dataset": DATASET_PATH,
+    "dataset": DATASET_RGB_PATH,
     }
 )
 #create job directoy
@@ -144,13 +162,29 @@ print('device: ', device)
 # datatype = torch.float32
 
 # Define the dataset size
-dataset = CustomImageDataset(
-    rgb_img_dir=DATASET_RGB_PATH, 
-    depth_img_dir=DATASET_DEPTH_PATH, 
-    img_w=IMAGE_W, 
-    image_h=IMAGE_H,
-    img_datatype=IMAGE_TYPE,
-    )
+# dataset = CustomImageDataset(
+#     rgb_img_dir=DATASET_RGB_PATH, 
+#     depth_img_dir=DATASET_DEPTH_PATH, 
+#     img_w=IMAGE_W, 
+#     img_h=IMAGE_H,
+#     img_datatype=IMAGE_TYPE,
+#     )
+rgb_transform = transforms.Compose([
+    transforms.Resize((240, 320)),  # Resize to your target size
+    transforms.ToTensor(),          # Convert PIL to tensor and normalize to [0,1]
+])
+
+depth_transform = transforms.Compose([
+    transforms.Resize((240, 320)),
+])
+
+
+# dataset = NYUNativeTrain(root=DATASET_RGB_PATH, img_w=IMAGE_W,img_h=IMAGE_H)
+dataset = NYUv2(root=DATASET_PATH,
+                train=True, 
+                download=False,
+                rgb_transform=rgb_transform,
+                depth_transform=depth_transform)
 
 # Split the dataset into train and validation
 dataset_size = len(dataset)
@@ -169,7 +203,8 @@ valLoader = torch.utils.data.DataLoader(valset,
                                         num_workers=NUM_WORKERS)
 
 # Network and optimzer --------------------------------------------------------------
-model = UNet()
+# model = UNet()
+model = Network(in_ch=3, out_ch=1)
 model = model.to(device)
 optimizer = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=0.001) #use ADAMW optimizer- we can choose another one too
 # optimizer = torch.optim.Adam(model.parameters(), lr=LR) #another option
@@ -179,7 +214,7 @@ trainedMdlPath = TRAINED_MDL_PATH + f"test.pth"
 torch.save(model.state_dict(), trainedMdlPath)
 
 # lossFn = nn.BCEWithLogitsLoss()  #nn.CrossEntropyLoss(), but that did not seem to work much; nn.BCEWithLogitsLoss() is the one that worked best
-lossFn = nn.mse_loss()
+lossFn = nn.MSELoss()
 
 
 for eIndex in range(EPOCHS):

@@ -11,5 +11,11 @@ __pycache__
 new_model
 *.tar
 *.zip
+*.tgz
+*.tar.gz
 nyu_data
 nyu_runs
+*.mat
+*.pth
+*.pt
+wandb

@@ -1,54 +1,136 @@
-import numpy as np
 
-import torch, torch.nn as nn
+import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
-# ----------------------------
-# U-Net (compact)
-# ----------------------------
+from utils import dp
 
-class DoubleConv(nn.Module):
-    def __init__(self, i, o):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Conv2d(i,o,3,padding=1), nn.BatchNorm2d(o), nn.ReLU(True),
-            nn.Conv2d(o,o,3,padding=1), nn.BatchNorm2d(o), nn.ReLU(True),
+# let's implement resnet34 as backbone, U-net as architecture, we mixed and matched
+# https://raw.githubusercontent.com/rasbt/deeplearning-models/18e046926551378cd691fd871dda0f21dcd272ab/pytorch_ipynb/images/resnets/resnet152/resnet152-arch-1.png
+
+
+class Network(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super(Network, self).__init__()
+
+        self.debug = False
+
+        # first conv goes from 3 rgb channels to 64 feature channels, then does it again
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_ch, 64, kernel_size=9,
+                      stride=1, padding=4, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 64, kernel_size=7,
+                      stride=1, padding=3, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+
         )
-    def forward(self,x): return self.net(x)
+        # self.maxPool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
-class UNet(nn.Module):
-    def __init__(self, ch=[64,128,256,512,1024]):
-        super().__init__()
-        self.d1 = DoubleConv(3, ch[0]);  self.p1 = nn.MaxPool2d(2)
-        self.d2 = DoubleConv(ch[0], ch[1]);  self.p2 = nn.MaxPool2d(2)
-        self.d3 = DoubleConv(ch[1], ch[2]);  self.p3 = nn.MaxPool2d(2)
-        self.d4 = DoubleConv(ch[2], ch[3]);  self.p4 = nn.MaxPool2d(2)
-        self.b  = DoubleConv(ch[3], ch[4])
+        self.down1 = DownModule(64, 128)
+        self.down2 = DownModule(128, 256)
+        self.down3 = DownModule(256, 512)
+        self.down4 = DownModule(512, 1024)
 
-        self.u4  = nn.ConvTranspose2d(ch[4], ch[3], 2, 2)
-        self.u4d = DoubleConv(ch[4], ch[3])
+        self.up1 = UpModule(1024, 512)
+        self.up2 = UpModule(512, 256)
+        self.up3 = UpModule(256, 128)
+        self.up4 = UpModule(128, 64)
 
-        self.u3  = nn.ConvTranspose2d(ch[3], ch[2], 2, 2)
-        self.u3d = DoubleConv(ch[3], ch[2])
-
-        self.u2  = nn.ConvTranspose2d(ch[2], ch[1], 2, 2)
-        self.u2d = DoubleConv(ch[2], ch[1])
-
-        self.u1  = nn.ConvTranspose2d(ch[1], ch[0], 2, 2)
-        self.u1d = DoubleConv(ch[0] + ch[0], ch[0])
-
-        self.out = nn.Conv2d(ch[0], 1, 1)
+        self.outConv = nn.Conv2d(
+            64, out_ch, kernel_size=1, stride=1, padding=0)
 
     def forward(self, x):
-        d1 = self.d1(x)
-        d2 = self.d2(self.p1(d1))
-        d3 = self.d3(self.p2(d2))
-        d4 = self.d4(self.p3(d3))
-        b  = self.b(self.p4(d4))
+        # we simply pass the x through each layer
+        x_1 = self.conv(x)
+        # x = self.maxPool(x)
+        if self.debug:
+            dp("X1", x_1.shape)
+        x_2 = self.down1(x_1)
+        if self.debug:
+            dp("X2", x_2.shape)
+        x_3 = self.down2(x_2)
+        if self.debug:
+            dp("X3", x_3.shape)
+        x_4 = self.down3(x_3)
+        if self.debug:
+            dp("X4", x_4.shape)
+        x_5 = self.down4(x_4)
+        if self.debug:
+            dp("X5", x_5.shape)
 
-        x = self.u4(b); x = self.u4d(torch.cat([x, d4], 1))
-        x = self.u3(x); x = self.u3d(torch.cat([x, d3], 1))
-        x = self.u2(x); x = self.u2d(torch.cat([x, d2], 1))
-        x = self.u1(x); x = self.u1d(torch.cat([x, d1], 1))
-        return self.out(x)  # log-depth
+        # we build it back up by upscaling and concatenating the opposite layers
+        x = self.up1(x_5, x_4)
+        if self.debug:
+            dp("x_0_up", x.shape)
+        x = self.up2(x, x_3)
+        if self.debug:
+            dp("x_1_up", x.shape)
+        x = self.up3(x, x_2)
+        if self.debug:
+            dp("x_2_up", x.shape)
+        x = self.up4(x, x_1)
+        if self.debug:
+            dp("x_3_up", x.shape)
 
+        x = self.outConv(x)
+        if self.debug:
+            dp("out", x.shape)
+
+        return x
+
+
+class DownModule(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super().__init__()
+        # this decreases the size of the image by half
+        self.maxPool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+
+        # just perform the standard Conv, BN, ReLU twice without changing the image size
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, kernel_size=3,
+                      stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_ch, out_ch, kernel_size=3,
+                      stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True),
+        )
+
+    def forward(self, x):
+        x = self.maxPool(x)
+        x = self.conv(x)
+        return x
+
+
+class UpModule(nn.Module):
+    # example is 1024, 512
+    def __init__(self, in_ch, out_ch):
+        super().__init__()
+        # this increases the size of the image by 2
+        # channels will be halved 1024 -> 512
+        self.up = nn.ConvTranspose2d(in_ch, out_ch, kernel_size=2,
+                                     stride=2, padding=0)
+
+        # we perform the standard Conv, BN, ReLU twice without changing the image size
+        # since we perform the concatenation with the opposite layer the channels will be in_ch on the first conv2d (512+512) -> 512
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, kernel_size=3,
+                      stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_ch, out_ch, kernel_size=3,
+                      stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True),
+        )
+
+    def forward(self, x, x_opposite):
+        x = self.up(x)
+        # paste the x from the previous layer
+        x = torch.cat([x_opposite, x], dim=1)
+        x = self.conv(x)
+        return x
