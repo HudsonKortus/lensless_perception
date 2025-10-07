@@ -6,7 +6,8 @@ import imageio.v2 as imageio
 import time
 
 import torch, torch.nn as nn
-
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 
 
@@ -58,18 +59,47 @@ def dp(*args, **kwargs):
 
 def CombineImages(pred, label, rgb):
     pred = pred.detach().cpu().numpy().squeeze()
+    pred_depth = pred[0, :, :]
+    pred_uncertainty = pred[1, :, :]
     label = label.detach().cpu().numpy().squeeze()
     rgb = rgb.detach().cpu().numpy()
-    gray_array = 0.299 * rgb[0, :, :] + 0.587 * rgb[1, :, :] + 0.114 * rgb[2, :, :]
+    # gray_array = 0.299 * rgb[0, :, :] + 0.587 * rgb[1, :, :] + 0.114 * rgb[2, :, :]
 
-    # Add two blank (zero) channels to pred and label to make them 3-channel
-    pred_3ch = np.stack([pred, pred, pred], axis=0)
-    label_3ch = np.stack([label, label, label], axis=0)
-    # print(f"label vlaue {label_3ch}")
+    pred_depth_norm = np.nan_to_num(pred_depth)
+    pred_uncertainty_norm = np.nan_to_num(pred_uncertainty)
+    label_norm = np.nan_to_num(label)
+
+    # Normalize to [0, 1] range
+    if pred_depth_norm.max() > pred_depth_norm.min():
+        pred_depth_norm = (pred_depth_norm - pred_depth_norm.min()) / (pred_depth_norm.max() - pred_depth_norm.min())
+    else:
+        pred_depth_norm = np.zeros_like(pred_depth_norm)
+
+    if pred_uncertainty_norm.max() > pred_uncertainty_norm.min():
+        pred_uncertainty_norm = (pred_uncertainty_norm - pred_uncertainty_norm.min()) / (pred_uncertainty_norm.max() - pred_uncertainty_norm.min())
+    else:
+        pred_uncertainty_norm = np.zeros_like(pred_uncertainty_norm)
+
+    if label_norm.max() > label_norm.min():
+        label_norm = (label_norm - label_norm.min()) / (label_norm.max() - label_norm.min())
+    else:
+        label_norm = np.zeros_like(label_norm)
+
+    plasma_cmap = cm.get_cmap('plasma')
+    # Convert to RGB using plasma colormap
+    pred_depth_plasma = plasma_cmap(pred_depth_norm)[:, :, :3].transpose(2, 0, 1)
+    pred_uncertainty_plasma = plasma_cmap(pred_uncertainty_norm)[:, :, :3].transpose(2, 0, 1)
+    label_plasma = plasma_cmap(label_norm)[:, :, :3].transpose(2, 0, 1)
 
 
+    # # Add two blank (zero) channels to pred and label to make them 3-channel
+    # pred_3ch = np.stack([pred, pred, pred], axis=0)
+    # label_3ch = np.stack([label, label, label], axis=0)
+    # # print(f"label vlaue {label_3ch}")
+
+    # print(f'pred_depth_plasma size {pred_depth_plasma.shape}, \n pred_uncertainty_plasma size: {pred_uncertainty_plasma.shape}, \nlabel_plasma size {label_plasma.shape}, \nrgb size {rgb.shape}')
     # Concatenate images horizontally
-    combined_image_np = np.concatenate((pred_3ch, label_3ch, rgb), axis=1)
+    combined_image_np = np.concatenate((pred_depth_plasma,pred_uncertainty_plasma, label_plasma, rgb), axis=1)
     # print("images", combined_image_np)
     combined_image_np = (np.clip(combined_image_np, 0, 1)*255).astype(np.uint8)
     combined_image_np = combined_image_np.transpose(1, 2, 0)

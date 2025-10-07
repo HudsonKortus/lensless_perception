@@ -124,7 +124,7 @@ class NYUv2(Dataset):
             img = img / self.max_depth
             img = torch.from_numpy(img)
             img = img.unsqueeze(0)  # Add channel dimension
-            img = torch.clamp(img, min=0.0)  # Remove any negative values
+            # img = torch.clamp(img, min=0.0)  # Remove any negative values
             imgs.append(img)
 
         return imgs

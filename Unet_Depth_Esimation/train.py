@@ -27,6 +27,26 @@ from nyu_dataloader import NYUv2
 # from loadParam import *
 
 
+#output will have 2 channels, 0: predected depth, 1: predicted uncertancy
+#target will have 1 channel: ground truth depth
+#loss will have 2 channels, 0: depth loss, 1:uncertancy loss
+def uncertainty_loss(output, depth_target):
+    if len(depth_target.shape) == 3:
+        depth_target = depth_target.unsqueeze(1)  # [8, 240, 320] -> [8, 1, 240, 320]
+        
+    # print(f'output shape{output.shape}, depth_target shape{depth_target.shape}')
+    depth_output = output[:, 0, ...].unsqueeze(1) # [batch, channels, height, width] [8,1,h,w]
+    uncertainty_output = output[:, 1, ...].unsqueeze(1) # [8,1,h,w]
+    # print(f'depth_output shape{depth_output.shape}, uncertainty_output shape{uncertainty_output.shape}')
+    
+    depth_loss = nn.functional.huber_loss(input=depth_output, target=depth_target, reduction='none')
+    # print(f'depth_loss shape: {depth_loss.shape}---')
+    total_loss = depth_loss * (uncertainty_output**-2) + 1 *torch.log(uncertainty_output**2)
+    # print(f'total_loss shape: {total_loss.shape}')
+    
+    return total_loss.mean()
+
+
 def shouldLog(batchcount=None):
     if batchcount==None:
         return LOG_WANDB=='true'
@@ -47,8 +67,7 @@ def train(dataloader, model, loss_fn, optimizer, epochstep):
         rgb = rgb.to(device)
         # print("rbg shape: ", rgb.shape)
 
-        # if len(label.shape) == 3:
-        #     label = label.unsqueeze(1)  # [8, 240, 320] -> [8, 1, 240, 320]
+
 
         label = label.to(device)
         # print("label: ", label)
@@ -59,10 +78,12 @@ def train(dataloader, model, loss_fn, optimizer, epochstep):
         pred = model(rgb)
         # print("pred shape: ", pred.shape)
 
-        loss = loss_fn(pred, label)        
+        # loss = loss_fn(pred, label)        
+        loss = uncertainty_loss(output=pred, depth_target=label)        
+
         loss.backward()
         optimizer.step()
-        print("loss: ", loss)
+        print("loss: ", loss.item())
         epochloss += loss.item()
 
         wandb.log({
@@ -89,7 +110,7 @@ def train(dataloader, model, loss_fn, optimizer, epochstep):
                 "images/train": wandb_images,
             })
                     
-    if shouldLog():
+    if shouldLog(LOG_WANDB):
         wandb.log({
             "epoch/loss/train": epochloss,
                     })
@@ -110,8 +131,7 @@ def val(dataloader, model, loss_fn, epochstep):
             pred = model(rgb)
             # print(pred)
             # print(pred.shape)
-            loss = loss_fn(pred, label)       
-
+            loss = uncertainty_loss(output=pred, depth_target=label)        
             epochloss += loss.item()
         
             wandb.log({
@@ -133,6 +153,9 @@ def val(dataloader, model, loss_fn, epochstep):
     wandb.log({
         "epoch/loss/val": epochloss,
                 })
+
+
+
 
 # INIT LOGGER
 wandb.init(
@@ -204,7 +227,7 @@ valLoader = torch.utils.data.DataLoader(valset,
 
 # Network and optimzer --------------------------------------------------------------
 # model = UNet()
-model = Network(in_ch=3, out_ch=1)
+model = Network(in_ch=3, out_ch=2)
 model = model.to(device)
 optimizer = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=0.001) #use ADAMW optimizer- we can choose another one too
 # optimizer = torch.optim.Adam(model.parameters(), lr=LR) #another option
@@ -215,7 +238,7 @@ torch.save(model.state_dict(), trainedMdlPath)
 
 # lossFn = nn.BCEWithLogitsLoss()  #nn.CrossEntropyLoss(), but that did not seem to work much; nn.BCEWithLogitsLoss() is the one that worked best
 lossFn = nn.MSELoss()
-
+# loffFn = uncertainty_loss()
 
 for eIndex in range(EPOCHS):
     dp(f"Epoch {eIndex+1}\n")
