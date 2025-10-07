@@ -4,9 +4,9 @@ from pathlib import Path
 
 # Configuration
 input_file = "FisherMask_HeightMap_OG.txt"
-output_file = Path("./3D_Files/fisher_mask_manifold_optimized3.stl")
+output_file = Path("./3D_Files/fisher_mask_manifold_optimized_upnano_1k_scaled_yx_10k_scaled_z.stl")
 xy_pitch = 125e-6 * 1000  # 125 micrometers
-z_scale = 1.0 * 100000      # Scale factor for height values
+z_scale = 1.0 * 1000      # Scale factor for height values
 base_height = 0.0         # Base height for the mesh bottom
 base_thickness = 10e-6  # 10 micrometers base thickness
 
