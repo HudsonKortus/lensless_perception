@@ -6,6 +6,9 @@ venv
 *.png
 *.jpeg
 *.bmp 
+*.blend
+*.obj
+*.mtl
 *.tfrecord
 __pycache__
 new_model

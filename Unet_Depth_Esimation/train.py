@@ -27,7 +27,7 @@ from nyu_dataloader import NYUv2
 # from loadParam import *
 
 
-#output will have 2 channels, 0: predected depth, 1: predicted uncertancy
+#output will have 2 channels, 0: predected depth, 1: predicted uncertancy- which is actually the log(uncertancy**2)
 #target will have 1 channel: ground truth depth
 #loss will have 2 channels, 0: depth loss, 1:uncertancy loss
 def uncertainty_loss(output, depth_target):
@@ -37,11 +37,12 @@ def uncertainty_loss(output, depth_target):
     # print(f'output shape{output.shape}, depth_target shape{depth_target.shape}')
     depth_output = output[:, 0, ...].unsqueeze(1) # [batch, channels, height, width] [8,1,h,w]
     uncertainty_output = output[:, 1, ...].unsqueeze(1) # [8,1,h,w]
+    uncertainty_output = torch.clamp(uncertainty_output, min=-6, max=4)
     # print(f'depth_output shape{depth_output.shape}, uncertainty_output shape{uncertainty_output.shape}')
     
     depth_loss = nn.functional.huber_loss(input=depth_output, target=depth_target, reduction='none')
     # print(f'depth_loss shape: {depth_loss.shape}---')
-    total_loss = depth_loss * (uncertainty_output**-2) + 1 *torch.log(uncertainty_output**2)
+    total_loss = depth_loss * torch.exp(-uncertainty_output) + (uncertainty_output / 2)
     # print(f'total_loss shape: {total_loss.shape}')
     
     return total_loss.mean()
