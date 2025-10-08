@@ -1,0 +1,6 @@
+numpy
+opencv-python
+pyrealsense2
+pathlib
+datetime 
+
