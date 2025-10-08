@@ -30,7 +30,7 @@ from gi.repository import Gst, GstApp
 # CONFIG
 TARGET_FPS = 30
 CAPTURE_FZ = .5
-OUT_DIR = "~/media/pear/ssssd/DFD_DOE_Test_2"
+OUT_DIR = "frames" #~/../../media/pear/ssssd/DFD_DOE_Test_2/"
 ARDUCAM_DIR = "arducam" + '/'
 REALDEPTH_DIR = "realdepth" + '/'
 REAL_RGB_DIR = "realsense" + '/'
