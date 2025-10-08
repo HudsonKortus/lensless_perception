@@ -34,16 +34,13 @@ def uncertainty_loss(output, depth_target):
     if len(depth_target.shape) == 3:
         depth_target = depth_target.unsqueeze(1)  # [8, 240, 320] -> [8, 1, 240, 320]
         
-    # print(f'output shape{output.shape}, depth_target shape{depth_target.shape}')
     depth_output = output[:, 0, ...].unsqueeze(1) # [batch, channels, height, width] [8,1,h,w]
     uncertainty_output = output[:, 1, ...].unsqueeze(1) # [8,1,h,w]
     uncertainty_output = torch.clamp(uncertainty_output, min=-6, max=4)
-    # print(f'depth_output shape{depth_output.shape}, uncertainty_output shape{uncertainty_output.shape}')
     
-    depth_loss = nn.functional.huber_loss(input=depth_output, target=depth_target, reduction='none')
-    # print(f'depth_loss shape: {depth_loss.shape}---')
+    # depth_loss = nn.functional.huber_loss(input=depth_output, target=depth_target, reduction='none')
+    depth_loss = nn.functional.smooth_l1_loss(input=depth_output, target=depth_target, beta= 0.1,reduction='none')
     total_loss = depth_loss * torch.exp(-uncertainty_output) + (uncertainty_output / 2)
-    # print(f'total_loss shape: {total_loss.shape}')
     
     return total_loss.mean()
 
@@ -80,7 +77,7 @@ def train(dataloader, model, loss_fn, optimizer, epochstep):
         # print("pred shape: ", pred.shape)
 
         # loss = loss_fn(pred, label)        
-        loss = uncertainty_loss(output=pred, depth_target=label)        
+        loss = loss_fn(pred, label) #uncertainty_loss(output=pred, depth_target=label)        
 
         loss.backward()
         optimizer.step()
@@ -132,7 +129,7 @@ def val(dataloader, model, loss_fn, epochstep):
             pred = model(rgb)
             # print(pred)
             # print(pred.shape)
-            loss = uncertainty_loss(output=pred, depth_target=label)        
+            loss = loss_fn(pred, label) # uncertainty_loss(output=pred, depth_target=label)        
             epochloss += loss.item()
         
             wandb.log({
@@ -206,7 +203,7 @@ depth_transform = transforms.Compose([
 # dataset = NYUNativeTrain(root=DATASET_RGB_PATH, img_w=IMAGE_W,img_h=IMAGE_H)
 dataset = NYUv2(root=DATASET_PATH,
                 train=True, 
-                download=False,
+                download=True,
                 rgb_transform=rgb_transform,
                 depth_transform=depth_transform)
 
@@ -238,7 +235,7 @@ trainedMdlPath = TRAINED_MDL_PATH + f"test.pth"
 torch.save(model.state_dict(), trainedMdlPath)
 
 # lossFn = nn.BCEWithLogitsLoss()  #nn.CrossEntropyLoss(), but that did not seem to work much; nn.BCEWithLogitsLoss() is the one that worked best
-lossFn = nn.MSELoss()
+lossFn = nn.L1Loss()#uncertainty_loss  #nn.MSELoss()
 # loffFn = uncertainty_loss()
 
 for eIndex in range(EPOCHS):

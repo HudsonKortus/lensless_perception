@@ -1,24 +1,35 @@
+
+# Data Files:
 *.stl
-venv
 *.png
 *.tiff
 *.jpg
 *.png
 *.jpeg
 *.bmp 
-*.blend
-*.obj
-*.mtl
+
+# PyTorch Files
 *.tfrecord
-__pycache__
-new_model
+
+#Bulk compressed files
 *.tar
 *.zip
 *.tgz
 *.tar.gz
-nyu_data
-nyu_runs
+
+# Model Files
 *.mat
 *.pth
 *.pt
+
+#folders bec im lazy
+__pycache__
+new_model
 wandb
+venv
+nyu_data
+nyu_runs
+
+#Turing Files
+*.err
+*.out
