@@ -16,7 +16,7 @@ import wandb
 # from network import UNet
 from network import Network
 # from utils import *
-from dataloader import CustomImageDataset, NYUNativeTest, NYUNativeTrain
+from dataloader import CustomImageDataset, NYUNativeTest, NYUNativeTrain, CombinedDatasetDataloader
 from params import *
 # import pdb
 from utils import *
@@ -26,11 +26,43 @@ from nyu_dataloader import NYUv2
 # Load the parameters
 # from loadParam import *
 
+def weighted_mask(border,device):
+    border_mask = torch.ones((IMAGE_H, IMAGE_W),)
+    border_mask[:border, :] = 0
+    border_mask[-border:, :] = 0
+    border_mask[:, :border] = 0
+    border_mask[:, -border:] = 0
+
+
+    # build a 2D Gaussian-like weighting map
+    yy, xx = torch.meshgrid(
+        torch.linspace(-1, 1, IMAGE_H),
+        torch.linspace(-1, 1, IMAGE_W),
+        indexing="ij")
+    r = torch.sqrt(xx**2 + yy**2)
+    weight_map = torch.exp(-4 * r**2)   # e.g. σ≈0.5: strong center emphasis
+    print(f'weight map dimensions {weight_map.shape}')
+    print(f'border mask {border_mask.shape}')
+
+    weight_map = border_mask * weight_map
+
+
+    # normalize so the mean = 1 over nonzero region
+    if weight_map.sum() > 0:
+        weight_map = weight_map * (weight_map.numel() / weight_map.sum())
+
+    # reshape for broadcast: [1,1,H,W]
+    return weight_map.unsqueeze(0).unsqueeze(0)
+
+
+
+
+
 
 #output will have 2 channels, 0: predected depth, 1: predicted uncertancy- which is actually the log(uncertancy**2)
 #target will have 1 channel: ground truth depth
 #loss will have 2 channels, 0: depth loss, 1:uncertancy loss
-def uncertainty_loss(output, depth_target):
+def uncertainty_loss(output, depth_target,device):
     if len(depth_target.shape) == 3:
         depth_target = depth_target.unsqueeze(1)  # [8, 240, 320] -> [8, 1, 240, 320]
         
@@ -42,7 +74,9 @@ def uncertainty_loss(output, depth_target):
     depth_loss = nn.functional.smooth_l1_loss(input=depth_output, target=depth_target, beta= 0.1,reduction='none')
     total_loss = depth_loss * torch.exp(-uncertainty_output) + (uncertainty_output / 2)
     
-    return total_loss.mean()
+    weight_mask = weighted_mask(20, device).to(device)
+    loss = (total_loss * weight_mask).sum() / weight_mask.sum()
+    return loss
 
 
 def shouldLog(batchcount=None):
@@ -63,22 +97,20 @@ def train(dataloader, model, loss_fn, optimizer, epochstep):
         dp(' batch', batchcount)
         
         rgb = rgb.to(device)
-        # print("rbg shape: ", rgb.shape)
+        print("rbg shape: ", rgb.shape)
 
 
 
         label = label.to(device)
-        # print("label: ", label)
-        # print(f"label min: {label.min()} label max {label.max()}")
+        print("label shape: ", label.shape)
+        print(f"label min: {label.min()} label max {label.max()}")
 
         optimizer.zero_grad()
         
         pred = model(rgb)
-        # print("pred shape: ", pred.shape)
+        print("pred shape: ", pred.shape)
 
-        # loss = loss_fn(pred, label)        
-        loss = loss_fn(pred, label) #uncertainty_loss(output=pred, depth_target=label)        
-
+        loss = loss_fn(pred, label, device)
         loss.backward()
         optimizer.step()
         print("loss: ", loss.item())
@@ -129,7 +161,7 @@ def val(dataloader, model, loss_fn, epochstep):
             pred = model(rgb)
             # print(pred)
             # print(pred.shape)
-            loss = loss_fn(pred, label) # uncertainty_loss(output=pred, depth_target=label)        
+            loss = loss_fn(pred, label, device) # uncertainty_loss(output=pred, depth_target=label)        
             epochloss += loss.item()
         
             wandb.log({
@@ -190,22 +222,40 @@ print('device: ', device)
 #     img_h=IMAGE_H,
 #     img_datatype=IMAGE_TYPE,
 #     )
-rgb_transform = transforms.Compose([
-    transforms.Resize((240, 320)),  # Resize to your target size
-    transforms.ToTensor(),          # Convert PIL to tensor and normalize to [0,1]
-])
+# rgb_transform = transforms.Compose([
+#     transforms.Resize((240, 320)),  # Resize to your target size
+#     transforms.ToTensor(),          # Convert PIL to tensor and normalize to [0,1]
+# ])
 
-depth_transform = transforms.Compose([
-    transforms.Resize((240, 320)),
-])
+# depth_transform = transforms.Compose([
+#     transforms.Resize((240, 320)),
+# ])
 
 
-# dataset = NYUNativeTrain(root=DATASET_RGB_PATH, img_w=IMAGE_W,img_h=IMAGE_H)
-dataset = NYUv2(root=DATASET_PATH,
-                train=True, 
-                download=True,
-                rgb_transform=rgb_transform,
-                depth_transform=depth_transform)
+# # dataset = NYUNativeTrain(root=DATASET_RGB_PATH, img_w=IMAGE_W,img_h=IMAGE_H)
+# dataset = NYUv2(root=DATASET_PATH,
+#                 train=True, 
+#                 download=False,
+#                 rgb_transform=rgb_transform,
+#                 depth_transform=depth_transform)
+
+
+# dataset = CustomImageDataset(
+#     rgb_img_dir=DATASET_RGB_PATH, 
+#     depth_img_dir=DATASET_DEPTH_PATH, 
+#     img_w=IMAGE_W, 
+#     img_h=IMAGE_H, 
+#     img_datatype=IMAGE_TYPE, 
+#     )
+
+dataset = CombinedDatasetDataloader(
+    root_directory='/home/hudson/Documents/MQP/lensless_perception/Unet_Depth_Esimation/data/DOE_3',
+    rgb_img_dir='arducam',
+    depth_img_dir='realdepth',
+    img_w=IMAGE_W,
+    img_h=IMAGE_H,
+    img_datatype=IMAGE_TYPE
+)
 
 # Split the dataset into train and validation
 dataset_size = len(dataset)
@@ -235,7 +285,7 @@ trainedMdlPath = TRAINED_MDL_PATH + f"test.pth"
 torch.save(model.state_dict(), trainedMdlPath)
 
 # lossFn = nn.BCEWithLogitsLoss()  #nn.CrossEntropyLoss(), but that did not seem to work much; nn.BCEWithLogitsLoss() is the one that worked best
-lossFn = nn.L1Loss()#uncertainty_loss  #nn.MSELoss()
+lossFn = uncertainty_loss  #nn.MSELoss()
 # loffFn = uncertainty_loss()
 
 for eIndex in range(EPOCHS):

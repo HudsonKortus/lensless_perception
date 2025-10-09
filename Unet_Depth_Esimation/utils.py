@@ -105,3 +105,25 @@ def CombineImages(pred, label, rgb):
     combined_image_np = combined_image_np.transpose(1, 2, 0)
 
     return combined_image_np
+
+# def PreviewData(depth, coded, rgb):
+#     depth = depth.detach().cpu().numpy().squeeze()
+#     coded = coded.detach().cpu().numpy().squeeze()
+#     rgb = rgb.detach().cpu().numpy().squeeze()
+#     # gray_array = 0.299 * rgb[0, :, :] + 0.587 * rgb[1, :, :] + 0.114 * rgb[2, :, :]
+
+#     plasma_cmap = cm.get_cmap('plasma')
+#     # Convert to RGB using plasma colormap
+#     depth_plasma = plasma_cmap(depth)[:, :, :3].transpose(2, 0, 1)
+#     # pred_uncertainty_plasma = plasma_cmap(pred_uncertainty_norm)[:, :, :3].transpose(2, 0, 1)
+#     # label_plasma = plasma_cmap(label_norm)[:, :, :3].transpose(2, 0, 1)
+
+
+#     # print(f'pred_depth_plasma size {pred_depth_plasma.shape}, \n pred_uncertainty_plasma size: {pred_uncertainty_plasma.shape}, \nlabel_plasma size {label_plasma.shape}, \nrgb size {rgb.shape}')
+#     # Concatenate images horizontally
+#     combined_image_np = np.concatenate((depth,coded, rgb), axis=1)
+#     # print("images", combined_image_np)
+#     combined_image_np = (np.clip(combined_image_np, 0, 1)*255).astype(np.uint8)
+#     combined_image_np = combined_image_np.transpose(1, 2, 0)
+
+#     return combined_image_np
