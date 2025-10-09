@@ -41,8 +41,8 @@ def weighted_mask(border,device):
         indexing="ij")
     r = torch.sqrt(xx**2 + yy**2)
     weight_map = torch.exp(-4 * r**2)   # e.g. σ≈0.5: strong center emphasis
-    print(f'weight map dimensions {weight_map.shape}')
-    print(f'border mask {border_mask.shape}')
+    # print(f'weight map dimensions {weight_map.shape}')
+    # print(f'border mask {border_mask.shape}')
 
     weight_map = border_mask * weight_map
 
@@ -97,18 +97,18 @@ def train(dataloader, model, loss_fn, optimizer, epochstep):
         dp(' batch', batchcount)
         
         rgb = rgb.to(device)
-        print("rbg shape: ", rgb.shape)
+        # print("rbg shape: ", rgb.shape)
 
 
 
         label = label.to(device)
-        print("label shape: ", label.shape)
-        print(f"label min: {label.min()} label max {label.max()}")
+        # print("label shape: ", label.shape)
+        # print(f"label min: {label.min()} label max {label.max()}")
 
         optimizer.zero_grad()
         
         pred = model(rgb)
-        print("pred shape: ", pred.shape)
+        # print("pred shape: ", pred.shape)
 
         loss = loss_fn(pred, label, device)
         loss.backward()
