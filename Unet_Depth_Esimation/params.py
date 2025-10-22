@@ -1,7 +1,7 @@
 import os
 turning = False
 HOME_PATH   =   os.path.expanduser("~")
-JOB_ID      =   "run2"
+JOB_ID      =   "DOE_Diffuser_Test_2_no_mask"
 MODEL_NAME  =   "mono_depth"
 
 if (turning):

@@ -52,7 +52,7 @@ class CombinedDatasetDataloader(Dataset):
                         depth = depth_transform(depth)
                         depth_tensor = self.process_depth_image(
                             img=depth, 
-                            max_depth=5, 
+                            max_depth=6, 
                             invalid_threshold=.35
                         )
                         if depth_tensor is None:
@@ -84,7 +84,7 @@ class CombinedDatasetDataloader(Dataset):
     
     def process_depth_image(self, img, max_depth, invalid_threshold):
         # print(f"image datatype {img.mode}")
-        img = np.array(img, dtype=np.float32) / 1e3  # Convert to meters
+        img = np.array(img, dtype=np.float32) / 1e4  # Convert to meters
         # print(f"image shape:{img.shape}, img min:{img.min()}, img max{img.max()}")
 
         non_zero_depth = img > 0

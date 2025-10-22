@@ -74,9 +74,10 @@ def uncertainty_loss(output, depth_target,device):
     depth_loss = nn.functional.smooth_l1_loss(input=depth_output, target=depth_target, beta= 0.1,reduction='none')
     total_loss = depth_loss * torch.exp(-uncertainty_output) + (uncertainty_output / 2)
     
-    weight_mask = weighted_mask(20, device).to(device)
-    loss = (total_loss * weight_mask).sum() / weight_mask.sum()
-    return loss
+    # weight_mask = weighted_mask(20, device).to(device)
+    # loss = (total_loss * weight_mask).sum() / weight_mask.sum()
+    # return loss
+    return total_loss.mean()
 
 
 def shouldLog(batchcount=None):
