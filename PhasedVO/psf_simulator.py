@@ -9,8 +9,6 @@ Features:
 - Pupil sampling, zero-padding for FFT, PSF normalization
 - Metrics: mean L2 difference to ref depth, approximate Fisher info & CRLB
 - Export PSF stack as numpy for CodedVO (depth, H, W, 3)
-
-Author: ChatGPT (adapted for your IMX477 / ArduCAM use)
 """
 
 import numpy as np
